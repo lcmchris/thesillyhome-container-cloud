@@ -1,0 +1,12 @@
+volumes:
+  thesillyhome_cloud_config:
+    name: thesillyhome_cloud_config
+    external: true
+
+services:
+  thesillyhome_cloud:
+    container_name: thesillyhome_cloud
+    image: lcmchris1/thesillyhome-container-cloud:dev
+    restart: unless-stopped
+    volumes:
+      - thesillyhome_cloud_config:/thesillyhome_src/data/config/

@@ -1,0 +1,18 @@
+volumes:
+  thesillyhome_cloud_config:
+    name: thesillyhome_cloud_config
+  ignore:
+    name: ignore
+
+services:
+  thesillyhome_cloud:
+    container_name: thesillyhome_cloud
+    image: lcmchris1/thesillyhome-container-cloud:dev
+    restart: unless-stopped
+    volumes:
+      - .\thesillyhome_src\appdaemon\apps\:/thesillyhome_src/appdaemon/apps/
+      - .\thesillyhome_src\startup\:/thesillyhome_src/startup/
+      - .\thesillyhome_src\thesillyhome\:/thesillyhome_src/thesillyhome/
+      - thesillyhome_cloud_config:/thesillyhome_src/data/config/
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
