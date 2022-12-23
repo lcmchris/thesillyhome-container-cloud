@@ -7,3 +7,4 @@ sqlalchemy==1.4.40
 pymysql==1.0.2
 pyarrow==9.0.0
 websockets==10.4
+tflite-runtime==2.11.0

@@ -38,10 +38,5 @@ def add_logger():
             "Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback)
         )
 
-        homedb().log_error(
-            str("".join(format_exception(exc_type, exc_value, exc_traceback))).replace(
-                "'", '"'
-            )
-        )
 
     sys.excepthook = handle_exception

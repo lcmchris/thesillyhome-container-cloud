@@ -17,12 +17,11 @@ if __name__ == "__main__":
     base_config_checks()
     replace_yaml()
 
-    # # Send data to s3
+    # Send data to s3
     # homedb().send_data()
 
-    # # Train model
-    # start_training_job()
-
+    # Train model
+    start_training_job()
 
     # End setup
     run_cron()
