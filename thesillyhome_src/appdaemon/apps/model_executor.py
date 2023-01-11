@@ -1,16 +1,11 @@
 # Library imports
-import string
 import appdaemon.plugins.hass.hassapi as hass
 import pickle
 import pandas as pd
-import copy
-import os.path
-import logging
 import datetime
 import sqlite3 as sql
 import pytz
 import numpy as np
-import time
 import json
 import tarfile
 
@@ -23,8 +18,12 @@ class ModelExecutor(hass.Hass):
     def initialize(self):
         self.model_version=1
         self.model_path = f'/thesillyhome_src/data/model/{self.model_version}'
-        self.interpreter, self.prediction_lookup, self.input,self.output = self.load_model(f"{self.model_path}/model.tflite")
-        self.base_input = self.load_base_input()
+        self.input_columns = list(pd.read_parquet(f"{self.model_path}/X_train_entity_ids.parquet")['entity_ids'])
+        self.interpreter, self.output_columns, self.input, self.output = self.load_model(f"{self.model_path}/model.tflite")
+        
+        self.prediction_flow()
+        self.handle = self.listen_state(self.state_handler)
+
 
     def load_model(self, model_path):
         """
@@ -42,14 +41,14 @@ class ModelExecutor(hass.Hass):
         interpreter.allocate_tensors()
         print('Model Interpreter loaded successfully.')
 
-        Y_train_entity_ids = list(pd.read_parquet(f"{self.model_path}/Y_train_entity_ids.parquet")['entity_ids'])
+        output_columns = list(pd.read_parquet(f"{self.model_path}/Y_train_entity_ids.parquet")['entity_ids'])
 
-        return interpreter, Y_train_entity_ids, input,output   
-    def load_base_input(self):
+        return interpreter, output_columns, input, output
+
+
+    def prediction_flow(self):
+        start = datetime.datetime.now()
         all_states_dict = self.get_state()
-        # X_train_entity_ids = list(pd.read_parquet(f"{self.model_path}/X_train_entity_ids.parquet")['entity_ids'])
-
-        # all_states_dict = {k: v for k, v in all_states_dict.items() if k in X_train_entity_ids}
         df_states = pd.DataFrame.from_dict(all_states_dict, orient='index').reset_index().rename(columns={'index':'state_id'})
      
         df_all = df_states.loc[:, ["state_id", "entity_id", "state", "last_updated"]]
@@ -84,8 +83,7 @@ class ModelExecutor(hass.Hass):
         df_sen_states = pd.concat(out_list, axis=1)
         df_sen_states = pd.get_dummies(df_sen_states).reset_index(drop=True)
 
-        df_X_train_entity_ids = pd.read_parquet(f"{self.model_path}/X_train_entity_ids.parquet")
-        input_data = pd.DataFrame(columns=list(df_X_train_entity_ids['entity_ids']))
+        input_data = pd.DataFrame(columns=self.input_columns)
         input_data.loc[0] = 0.0
         
         extra_columns = set(df_sen_states.columns) - set(input_data.columns)
@@ -95,21 +93,22 @@ class ModelExecutor(hass.Hass):
         input_data = pd.merge(df_sen_states, input_data, how='left', suffixes=('','_Temp'))
         input_data = input_data.fillna(0)
         input_data = input_data.astype(np.float32)
+        end = datetime.datetime.now()
+        print (f"time used {end - start}")
 
+        self.get_predictions(input_data)
+
+
+    def get_predictions(self, input_data):
         self.interpreter.set_tensor(self.input['index'], input_data)
-
         self.interpreter.invoke()
         prediction = self.interpreter.get_tensor(self.output['index'])
         self.convert_prediction_to_actions(prediction)
-        return input_data
-
     
     def convert_prediction_to_actions(self,prediction ,threshold:float=0.5):
-
-        prediction_lookup = self.prediction_lookup
+        prediction_lookup = self.output_columns
         prediction = prediction[0]
         for x,y in zip(prediction,prediction_lookup):
-            print( x)
             if x >= threshold:
                 self.log(f"Prediction {x} greater than {threshold}")
                 self.log(f"Turning on {y}")
@@ -121,12 +120,7 @@ class ModelExecutor(hass.Hass):
                 self.log(f"Turning off {y}")
                 # self.turn_off(y)
 
-
         return True
-
-
-
-        
 
     def get_current_states(self,df_parsed: pd.DataFrame) -> pd.DataFrame:
         """
@@ -140,7 +134,49 @@ class ModelExecutor(hass.Hass):
         return df_pivot
 
     def state_handler(self, entity, attribute, old, new, kwargs):
-        print (entity, attribute)
+        # Update input data
+        if entity in self.input_columns or f"{entity}_{new}" in self.input_columns:
+            print(f"Entity: {entity} is {new}")
+            self.prediction_flow()
+
+        # if entity in self.base_input.columns:
+        #     if new == "on":
+        #         self.base_input[entity] == 1
+        #     elif new == "off":
+        #         self.base_input[entity] == 0
+        #     elif isinstance(new, datetime):
+        #         hour, weekday = self.parse_date(new)
+        #         if f"{entity}_hour" in self.base_input.columns and  f"{entity}_day" in self.base_input.columns:
+        #             self.base_input[f"{entity}_hour"] = hour
+        #             self.base_input[f"{entity}_day"] = weekday
+        #     else:
+        #         self.base_input[entity] = new
+
+
+        #     hour, weekday = self.parse_date()
+        #     self.base_input["hour"] =hour
+        #     self.base_input["weekday"] =weekday
+        # elif f"{entity}_{new}" in self.base_input.columns and f"{entity}_{old}" in self.base_input.columns:
+        #     self.base_input[f"{entity}_{new}"] = 1
+        #     self.base_input[f"{entity}_{old}"] = 0
+        #     hour, weekday = self.parse_date()
+        #     self.base_input["hour"] =hour
+        #     self.base_input["weekday"] =weekday
+
+        # self.get_predictions(self.base_input)
+
+
+    def parse_date(self, date=datetime.datetime.now()):
+        hour = date.hour
+        weekday = date.weekday()
+        return hour, weekday
+
+
+
+        
+
+            
+
         
 
 # class ModelExecutor(hass.Hass):

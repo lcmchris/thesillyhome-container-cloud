@@ -18,10 +18,10 @@ if __name__ == "__main__":
     replace_yaml()
 
     # Send data to s3
-    # homedb().send_data()
+    homedb().send_data()
 
     # Train model
-    start_training_job()
+    start_training_job(force_train=True)
 
     # End setup
     run_cron()

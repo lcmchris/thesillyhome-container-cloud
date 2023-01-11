@@ -31,7 +31,6 @@ class homedb:
         self.password = tsh_config.db_password
         self.database = tsh_config.db_database
         self.db_type = tsh_config.db_type
-        self.share_data = tsh_config.share_data
         self.from_cache = False
         self.mydb = self.connect_internal_db()
 
@@ -42,9 +41,14 @@ class homedb:
                     f"postgresql+psycopg2://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}",
                     echo=False,
                 )
-            elif self.db_type == "mariadb":
+            elif self.db_type == "mariadb" or self.db_type == "mysql":
                 mydb = create_engine(
                     f"mysql+pymysql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}",
+                    echo=False,
+                )
+            elif self.db_type == "sqlite":
+                mydb = create_engine(
+                    f"sqlite:////config/{self.database}",
                     echo=False,
                 )
             else:
@@ -63,9 +67,10 @@ class homedb:
             res = con.execute(query)
             new_last_updated_date = res.scalar_one().replace(tzinfo=timezone.utc)
 
-
-        prev_last_updated_date = parser.parse(tsh_config.user_metadata['last_updated_date'])
-        user_id = tsh_config.user['id']
+        prev_last_updated_date = parser.parse(
+            tsh_config.user_metadata["last_updated_date"]
+        )
+        user_id = tsh_config.user["id"]
 
         logging.info(f"Uploading data for {user_id}")
 
@@ -82,7 +87,7 @@ class homedb:
                     from states where last_updated > '{prev_last_updated_date}';"
 
             #
-            logging.info('Uploading data to The Silly Home')
+            logging.info("Uploading data to The Silly Home")
             with self.mydb.connect() as con:
                 con = con.execution_options(stream_results=True)
                 for df in pd.read_sql(
@@ -91,27 +96,40 @@ class homedb:
                     # index_col="state_id",
                     parse_dates=["last_changed", "last_updated"],
                     chunksize=100000,
-                ):  
-                    if not (len(df) < 100000):
-                        outputKey = f"{uuid4()}.parquet"
-                        url = f"{tsh_config.apigateway_endpoint}/user/states/{user_id}/{outputKey}"
-                        buffer = BytesIO()
+                ):
+                    # if not (len(df) < 100000):
+                    outputKey = f"{uuid4()}.parquet"
+                    url = f"{tsh_config.apigateway_endpoint}/user/states/{user_id}/{outputKey}"
+                    buffer = BytesIO()
 
-                        df.to_parquet(buffer, engine="pyarrow", index=False)
-                        buffer.seek(0)
-                        r = requests.put(url, data=buffer.read(), headers={"Content-Type":"application/binary", 'Authorization':tsh_config.api_key})
-                        if r.status_code != 200:
-                            raise ConnectionAbortedError
-                        buffer.close()
+                    df.to_parquet(buffer, engine="pyarrow", index=False)
+                    buffer.seek(0)
+                    r = requests.put(
+                        url,
+                        data=buffer.read(),
+                        headers={
+                            "Content-Type": "application/binary",
+                            "Authorization": tsh_config.api_key,
+                        },
+                    )
+                    if r.status_code != 200:
+                        raise ConnectionAbortedError
+                    buffer.close()
 
-                        #Update last_updated_date so we dont upload the same chunk
-                        logging.debug('Updating user last_update date')
-                        data = {
-                            "last_updated_date" : str(new_last_updated_date)
-                        }
-                        url = f"{tsh_config.apigateway_endpoint}/user"
-                        r = requests.put(url, json=data, headers={"Content-Type":"application/json", "Authorization": tsh_config.api_key, "X-Api-Key": tsh_config.api_key})
-                        if r.status_code != 200:
-                            raise ConnectionAbortedError
-        print('Completed data upload')
+                    # Update last_updated_date so we dont upload the same chunk
+                    logging.debug("Updating user last_update date")
+                    data = {"last_updated_date": str(new_last_updated_date)}
+                    url = f"{tsh_config.apigateway_endpoint}/user"
+                    r = requests.put(
+                        url,
+                        json=data,
+                        headers={
+                            "Content-Type": "application/json",
+                            "Authorization": tsh_config.api_key,
+                            "X-Api-Key": tsh_config.api_key,
+                        },
+                    )
+                    if r.status_code != 200:
+                        raise ConnectionAbortedError("Issues with connection to data API.")
+        print("Completed data upload")
         return True

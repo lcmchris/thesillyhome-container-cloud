@@ -17,8 +17,7 @@ options = json.load(config_file)
 # Mandatory
 api_key = options.get("api_key")
 actuators = list(options.get("actuactors_id"))
-sensors = list(options.get("sensors_id"))
-devices = actuators + sensors
+
 db_options = options.get("db_options")[0]
 db_password = db_options.get("db_password")
 db_database = db_options.get("db_database")
@@ -57,19 +56,6 @@ def get_user_info(api_key):
 
 user, user_metadata = get_user_info(api_key)
 
-
-
-# Other helpers
-def extract_float_sensors(sensors: list):
-    float_sensors_types = ["lux"]
-    float_sensors = []
-    for sensor in sensors:
-        if sensor.split("_")[-1] in float_sensors_types:
-            float_sensors.append(sensor)
-    return float_sensors
-
-
-float_sensors = extract_float_sensors(sensors)
 
 output_list_og = ["entity_id", "state"]
 output_list = ["entity_id", "state", "last_updated"]

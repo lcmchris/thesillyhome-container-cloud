@@ -18,8 +18,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN pip3 install --upgrade pip && \
     pip3 install setuptools==62.4.0 && \
     pip3 install -e /thesillyhome_src/thesillyhome/ && \
-    pip3 install appdaemon==4.2.1 
-
+    pip3 install appdaemon==4.2.1  && \
+    pip3 install tflite-runtime==2.11.0 
+# tflite can only be installed here, not in thesillyhome_src/thesillyhome/requirements.txt
 
 FROM python:3.9-slim-bullseye AS build-image
 

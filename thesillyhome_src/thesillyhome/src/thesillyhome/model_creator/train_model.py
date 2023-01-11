@@ -22,26 +22,26 @@ def download_file(url, folder):
                 f.write(chunk)
 
 
-def untarzip(self, input_file_path:str, output_file_path:str):
+def untarzip( input_file_path:str, output_file_path:str):
     file = tarfile.open(input_file_path)
     file.extractall(output_file_path)
     file.close()
 
 
-def model_exists():
+def model_exists_locally():
     model_path = "/thesillyhome_src/data/model"
     return os.path.isfile(f"{model_path}/model.tar.gz")
 
 
 def start_training_job(force_train=False):
-    if model_exists():
+    if model_exists_locally() and force_train==False:
         logging.info("Model already exists. Skipping training job.")
     # Start the training job
     else:
         logging.info("Start training job")
         url = f"{tsh_config.apigateway_endpoint}/user/model/train"
 
-        data = {"user_id": tsh_config.user["id"], "force_train": force_train}
+        data = {"user_id": tsh_config.user["id"], "force_train": force_train, "actuators": tsh_config.actuators}
         r = requests.post(
             url,
             json=data,
