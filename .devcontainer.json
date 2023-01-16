@@ -1,0 +1,16 @@
+{
+    "name": "thesillyhome_cloud",
+    "dockerComposeFile": "docker-compose-dev.yml",
+    "service": "thesillyhome_cloud",
+    "workspaceFolder": "/thesillyhome_src",
+    "shutdownAction": "stopCompose",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "njpwerner.autodocstring",
+                "svelte.svelte-vscode"
+            ]
+        }
+    }
+}
