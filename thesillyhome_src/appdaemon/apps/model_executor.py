@@ -33,6 +33,13 @@ class ModelExecutor(hass.Hass):
 
         self.prediction_flow()
         self.handle = self.listen_state(self.state_handler)
+        self.model_metrics = self.load_metrics(f"{self.model_path}/metrics_matrix.json")
+
+    
+    def load_metrics(self, metrics_path):
+        with open(metrics_path) as f:
+            d = json.load(f)
+        return d
 
     def load_model(self, model_path):
         """
@@ -44,7 +51,8 @@ class ModelExecutor(hass.Hass):
         interpreter.allocate_tensors()
 
         input = interpreter.get_input_details()[0]
-        output = interpreter.get_output_details()[0]
+        output = interpreter.get_output_details()
+        print(output)
 
         interpreter.allocate_tensors()
         print("Model Interpreter loaded successfully.")
@@ -58,7 +66,6 @@ class ModelExecutor(hass.Hass):
         return interpreter, output_columns, input, output
 
     def prediction_flow(self):
-        start = datetime.datetime.now()
         all_states_dict = self.get_state()
         df_states = (
             pd.DataFrame.from_dict(all_states_dict, orient="index")
@@ -105,34 +112,29 @@ class ModelExecutor(hass.Hass):
         df_sen_states = df_sen_states.drop(columns=extra_columns)
 
         input_data = pd.merge(
-            df_sen_states, input_data, how="left", suffixes=("", "_Temp")
+            df_sen_states, input_data, how="left", suffixes=("", "_Tmp")
         )
         input_data = input_data.fillna(0)
         input_data = input_data.astype(np.float32)
-        end = datetime.datetime.now()
-        print(f"time used {end - start}")
-
         self.get_predictions(input_data)
 
-    def get_predictions(self, input_data):
+    def get_predictions(self, input_data, threshold: float = 0.5):
         self.interpreter.set_tensor(self.input["index"], input_data)
         self.interpreter.invoke()
-        prediction = self.interpreter.get_tensor(self.output["index"])
-        self.convert_prediction_to_actions(prediction)
 
-    def convert_prediction_to_actions(self, prediction, threshold: float = 0.5):
         prediction_lookup = self.output_columns
-        prediction = prediction[0]
-        for x, y in zip(prediction, prediction_lookup):
-            if x >= threshold:
-                self.log(f"Prediction {x} greater than {threshold}")
-                self.log(f"Turning on {y}")
-                self.turn_on(y)
+        for i, actuator in enumerate(prediction_lookup):
+            prediction = self.interpreter.get_tensor(self.output[i]['index'])
+
+            if prediction >= threshold:
+                self.log(f"Prediction {prediction} greater than {threshold}")
+                self.log(f"Turning on {actuator}")
+                self.turn_on(actuator)
                 pass
-            elif x < threshold:
-                self.log(f"Prediction {x} less than {threshold}")
-                self.log(f"Turning off {y}")
-                self.turn_off(y)
+            elif prediction < threshold:
+                self.log(f"Prediction {prediction} less than {threshold}")
+                self.log(f"Turning off {actuator}")
+                self.turn_off(actuator)
 
         return True
 
