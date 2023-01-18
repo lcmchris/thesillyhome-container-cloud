@@ -22,7 +22,7 @@ if __name__ == "__main__":
     homedb().send_data()
 
     # Train model
-    start_training_job()
+    start_training_job(force_train=False)
 
     # End setup
     run_cron()

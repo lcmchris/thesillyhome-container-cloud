@@ -95,48 +95,49 @@ class homedb:
                     con=con,
                     # index_col="state_id",
                     parse_dates=["last_changed", "last_updated"],
-                    chunksize=100000,
+                    chunksize=25000,
                 ):
 
                     # if not (len(df) < 100000):
                     outputKey = f"{uuid4()}.parquet"
                     url = f"{tsh_config.apigateway_endpoint}/user/states/{user_id}/{outputKey}"
-                    buffer = BytesIO()
                     unique_actuators = unique_actuators.union(
                         set(df["entity_id"].unique())
                     )
-                    df.to_parquet(buffer, engine="pyarrow", index=False)
-                    buffer.seek(0)
-                    r = requests.put(
-                        url,
-                        data=buffer.read(),
-                        headers={
-                            "Content-Type": "application/binary",
-                            "Authorization": tsh_config.api_key,
-                        },
-                    )
-                    if r.status_code != 200:
-                        raise ConnectionAbortedError(logging.info(r))
 
-                    buffer.close()
-
-                    # Update last_updated_date so we dont upload the same chunk
-                    logging.debug("Updating user last_update date")
-                    data = {"last_updated_date": str(new_last_updated_date)}
-                    url = f"{tsh_config.apigateway_endpoint}/user"
-                    r = requests.put(
-                        url,
-                        json=data,
-                        headers={
-                            "Content-Type": "application/json",
-                            "Authorization": tsh_config.api_key,
-                            "X-Api-Key": tsh_config.api_key,
-                        },
-                    )
-                    if r.status_code != 200:
-                        raise ConnectionAbortedError(
-                            "Issues with connection to data API."
+                    # This was done instead of using pyarrow as rasphberrypi has troubles with pyarrow.
+                    # Fastparquet also cannot read directly into bytes as the file gets closed hence the use of tmp file.
+                    tmp_file = "/tmp/tmp.parquet"
+                    df.to_parquet(tmp_file, engine="fastparquet", index=False)
+                    with open(tmp_file, mode="rb") as file_data:
+                        r = requests.put(
+                            url,
+                            data=file_data,
+                            headers={
+                                "Content-Type": "application/binary",
+                                "Authorization": tsh_config.api_key,
+                            },
                         )
+                        if r.status_code != 200:
+                            raise ConnectionAbortedError(logging.info(r))
+
+                        # Update last_updated_date so we dont upload the same chunk
+                        logging.debug("Updating user last_update date")
+                        data = {"last_updated_date": str(new_last_updated_date)}
+                        url = f"{tsh_config.apigateway_endpoint}/user"
+                        r = requests.put(
+                            url,
+                            json=data,
+                            headers={
+                                "Content-Type": "application/json",
+                                "Authorization": tsh_config.api_key,
+                                "X-Api-Key": tsh_config.api_key,
+                            },
+                        )
+                        if r.status_code != 200:
+                            raise ConnectionAbortedError(
+                                "Issues with connection to data API."
+                            )
 
         print("Completed data upload")
         return True

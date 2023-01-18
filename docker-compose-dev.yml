@@ -1,8 +1,7 @@
 volumes:
   thesillyhome_cloud_config:
     name: thesillyhome_cloud_config
-  ignore:
-    name: ignore
+    external: true
 
 services:
   thesillyhome_cloud:

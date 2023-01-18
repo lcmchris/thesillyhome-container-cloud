@@ -28,8 +28,7 @@ db_port = db_options.get("db_port")
 
 # Defaults
 share_data = options.get("share_data", True)
-autotrain = options.get("autotrain", True)
-autotrain_cadence = options.get("autotrain_cadence", "0 0 * * 0")
+
 startup_disable_all = options.get("startup_disable_all", False)
 
 # External Endpoints
@@ -92,6 +91,9 @@ def replace_yaml():
 
 
 def run_cron():
+
+    autotrain = False
+    autotrain_cadence = "0 0 * * 0"
     if autotrain == True:
         with open("/thesillyhome_src/startup/crontab", "r") as f:
             content = f.read()
