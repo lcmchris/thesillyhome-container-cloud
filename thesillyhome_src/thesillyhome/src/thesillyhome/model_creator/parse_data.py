@@ -33,6 +33,25 @@ class homedb:
         self.database = tsh_config.db_database
         self.db_type = tsh_config.db_type
         self.mydb = self.connect_internal_db()
+        self.last_changed_string, self.last_updated_string = self.check_schema()
+
+    def check_schema(self):
+        desc_query = f"DESCRIBE homeassistant.states;"
+        with self.mydb.connect() as con:
+            con = con.execution_options(stream_results=True)
+            desc_schema = pd.read_sql(
+                desc_query,
+                con=con,
+            )
+            if all(
+                x in desc_schema["Field"].unique()
+                for x in ["last_changed", "last_updated"]
+            ):
+                schema = "old"
+                return "last_changed", "last_updated"
+            else:
+                schema = "new"
+                return "last_changed_ts", "last_updated_ts"
 
     def connect_internal_db(self):
         if self.db_type == "postgres":
@@ -57,12 +76,13 @@ class homedb:
     def send_data(self) -> pd.DataFrame:
 
         logging.info("<---Starting the parsing sequence--->")
+        ## Check schema. https://developers.home-assistant.io/blog/2023/01/02/db-schema-v32/
 
         # Get the last_updated_date to verify if we need to do any uploading.
         logging.info("Querying data from internal homeassistant db.")
         query = f"SELECT \
-                    last_updated \
-                from states ORDER BY last_updated DESC LIMIT 1;"
+                    {self.last_updated_string} \
+                from states ORDER BY {self.last_updated_string} DESC LIMIT 1;"
         with self.mydb.connect() as con:
             res = con.execute(query)
             new_last_updated_date = res.scalar_one().replace(tzinfo=timezone.utc)
@@ -78,13 +98,11 @@ class homedb:
                         state_id,\
                         entity_id  ,\
                         state  ,\
-                        last_changed  ,\
-                        last_updated  ,\
+                        {self.last_changed_string}  ,\
+                        {self.last_updated_string}  ,\
                         old_state_id, \
                         attributes_id \
-                    from states where last_updated > '{prev_last_updated_date}';"
-
-            #
+                    from states where {self.last_updated_string} > '{prev_last_updated_date}';"
 
             unique_actuators = set()
 
@@ -94,7 +112,7 @@ class homedb:
                     query,
                     con=con,
                     # index_col="state_id",
-                    parse_dates=["last_changed", "last_updated"],
+                    parse_dates=[self.last_changed_string, self.last_updated_string],
                     chunksize=25000,
                 ):
 

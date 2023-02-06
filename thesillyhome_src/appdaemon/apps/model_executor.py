@@ -35,7 +35,6 @@ class ModelExecutor(hass.Hass):
         self.handle = self.listen_state(self.state_handler)
         self.model_metrics = self.load_metrics(f"{self.model_path}/metrics_matrix.json")
 
-    
     def load_metrics(self, metrics_path):
         with open(metrics_path) as f:
             d = json.load(f)
@@ -73,7 +72,9 @@ class ModelExecutor(hass.Hass):
             .rename(columns={"index": "state_id"})
         )
 
-        df_all = df_states.loc[:, ["state_id", "entity_id", "state", "last_updated"]]
+        df_all = df_states.loc[
+            :, ["state_id", "entity_id", "state", tsh_config.last_updated_string]
+        ]
         df_all["state"] = df_all["state"].replace(["off", "unavailable", "unknown"], 0)
         df_all["state"] = df_all["state"].fillna(0)
         df_all["state"] = df_all["state"].replace(["on"], 1)
@@ -124,7 +125,7 @@ class ModelExecutor(hass.Hass):
 
         prediction_lookup = self.output_columns
         for i, actuator in enumerate(prediction_lookup):
-            prediction = self.interpreter.get_tensor(self.output[i]['index'])
+            prediction = self.interpreter.get_tensor(self.output[i]["index"])
 
             if prediction >= threshold:
                 self.log(f"Prediction {prediction} greater than {threshold}")
@@ -143,7 +144,9 @@ class ModelExecutor(hass.Hass):
         Returns pivoted frame of each state id desc
         """
         df_pivot = df_parsed.pivot(
-            index=["state_id", "last_updated"], columns=["entity_id"], values=["state"]
+            index=["state_id", tsh_config.last_updated_string],
+            columns=["entity_id"],
+            values=["state"],
         ).sort_values(by="state_id", ascending=False)
         df_pivot.columns = df_pivot.columns.droplevel(0)
         df_pivot = df_pivot.fillna(method="bfill").fillna(method="ffill")

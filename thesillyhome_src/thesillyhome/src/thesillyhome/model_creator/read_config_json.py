@@ -5,6 +5,9 @@ import os
 import logging
 import requests
 
+from thesillyhome.model_creator.parse_data import homedb
+
+
 data_dir = "/thesillyhome_src/data"
 
 if os.environ.get("HA_ADDON") == "true":
@@ -36,8 +39,6 @@ apigateway_endpoint = "https://api.thesillyhome.ai"
 
 
 # Check the prev last_updated date
-
-
 def get_user_info(api_key):
     url = f"{apigateway_endpoint}/user"
     logging.info(url)
@@ -62,6 +63,9 @@ def get_user_info(api_key):
 
 
 user, user_metadata = get_user_info(api_key)
+
+homedb_ = homedb()
+last_updated_string = homedb_.last_changed_string, homedb_.last_updated_string
 
 
 def replace_yaml():
