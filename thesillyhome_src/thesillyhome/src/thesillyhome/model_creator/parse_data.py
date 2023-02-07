@@ -33,7 +33,11 @@ class homedb:
         self.database = tsh_config.db_database
         self.db_type = tsh_config.db_type
         self.mydb = self.connect_internal_db()
-        self.last_changed_string, self.last_updated_string = self.check_schema()
+        (
+            self.ha_schema,
+            self.last_changed_string,
+            self.last_updated_string,
+        ) = self.check_schema()
 
     def check_schema(self):
         desc_query = f"DESCRIBE homeassistant.states;"
@@ -45,13 +49,11 @@ class homedb:
             )
             if all(
                 x in desc_schema["Field"].unique()
-                for x in ["last_changed", "last_updated"]
+                for x in ["last_changed_ts", "last_updated_ts"]
             ):
-                schema = "old"
-                return "last_changed", "last_updated"
+                return "new", "last_changed_ts", "last_updated_ts"
             else:
-                schema = "new"
-                return "last_changed_ts", "last_updated_ts"
+                return "old", "last_changed", "last_updated"
 
     def connect_internal_db(self):
         if self.db_type == "postgres":
@@ -85,7 +87,12 @@ class homedb:
                 from states ORDER BY {self.last_updated_string} DESC LIMIT 1;"
         with self.mydb.connect() as con:
             res = con.execute(query)
-            new_last_updated_date = res.scalar_one().replace(tzinfo=timezone.utc)
+            if self.ha_schema == "new":
+                new_last_updated_date = datetime.fromtimestamp(
+                    res.scalar_one()
+                ).replace(tzinfo=timezone.utc)
+            else:
+                new_last_updated_date = res.scalar_one().replace(tzinfo=timezone.utc)
 
         prev_last_updated_date = parser.parse(
             tsh_config.user_metadata["last_updated_date"]
@@ -115,8 +122,14 @@ class homedb:
                     parse_dates=[self.last_changed_string, self.last_updated_string],
                     chunksize=25000,
                 ):
+                    if self.ha_schema == "new":
+                        df["last_updated"] = pd.to_datetime(
+                            df[self.last_updated_string], unit="ns"
+                        )
+                        df["last_changed"] = pd.to_datetime(
+                            df[self.last_changed_string], unit="ns"
+                        )
 
-                    # if not (len(df) < 100000):
                     outputKey = f"{uuid4()}.parquet"
                     url = f"{tsh_config.apigateway_endpoint}/user/states/{user_id}/{outputKey}"
                     unique_actuators = unique_actuators.union(

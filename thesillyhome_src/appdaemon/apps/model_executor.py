@@ -73,7 +73,7 @@ class ModelExecutor(hass.Hass):
         )
 
         df_all = df_states.loc[
-            :, ["state_id", "entity_id", "state", tsh_config.last_updated_string]
+            :, ["state_id", "entity_id", "state", "last_updated"]
         ]
         df_all["state"] = df_all["state"].replace(["off", "unavailable", "unknown"], 0)
         df_all["state"] = df_all["state"].fillna(0)
@@ -144,7 +144,7 @@ class ModelExecutor(hass.Hass):
         Returns pivoted frame of each state id desc
         """
         df_pivot = df_parsed.pivot(
-            index=["state_id", tsh_config.last_updated_string],
+            index=["state_id", "last_updated"],
             columns=["entity_id"],
             values=["state"],
         ).sort_values(by="state_id", ascending=False)

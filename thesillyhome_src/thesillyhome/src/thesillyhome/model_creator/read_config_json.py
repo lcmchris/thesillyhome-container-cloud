@@ -64,9 +64,6 @@ def get_user_info(api_key):
 
 user, user_metadata = get_user_info(api_key)
 
-homedb_ = homedb()
-last_updated_string = homedb_.last_changed_string, homedb_.last_updated_string
-
 
 def replace_yaml():
     if os.environ.get("HA_ADDON") == "true" and options.get("ha_options") == None:
